@@ -1,0 +1,536 @@
+#version 100
+#extension GL_OES_standard_derivatives : enable
+uniform highp mat4 uViewMatrix;
+uniform highp vec3 uWorldSpaceEyePosition;
+uniform mediump vec4 uRMAOF0Scale;
+uniform mediump vec4 uRMAOF0Bias;
+uniform mediump sampler2D uAmbientEnvironmentTexture;
+uniform mediump vec3 uWorldSpaceToLightVector;
+uniform mediump vec3 uLightColor;
+uniform mediump float uNormalStrength;
+uniform mediump float uIndirectLightingScale;
+uniform highp float uAmbientEnvironmentRotation;
+uniform mediump float uDirectLightingScale;
+uniform mediump vec4 uSphericalHarmonicCoefficients[7];
+uniform mediump vec3 uAmbientLightSky;
+uniform mediump vec3 uAmbientLightGround;
+uniform mediump vec4 uSceneDynamicLightPosition[5];
+uniform mediump vec4 uSceneDynamicLightColor[5];
+uniform mediump vec4 uFogOmniDirAtten;
+uniform mediump vec3 uExponentialFogParams;
+uniform mediump vec4 uDirectionalInscatteringColorRadius;
+uniform mediump vec4 uExponentialFogColorOpacity;
+uniform mediump vec3 uDirectionalInscatteringStartFalloffAndInscatterFalloff;
+varying highp vec3 vWorldSpacePosition;
+varying highp vec4 vWSNormal;
+varying highp vec4 vWSTangent;
+varying mediump vec2 vUV;
+uniform mediump sampler2D uRimlightTexture;
+uniform mediump vec3 uRimlightColor;
+varying mediump vec3 vViewSpacePosition;
+uniform mediump sampler2D uBaseTexture;
+uniform mediump sampler2D uRMAOTexture;
+uniform mediump sampler2D uBumpTexture;
+uniform mediump vec3 uBaseObjectColor;
+uniform mediump vec3 uBaseObjectColor2;
+uniform mediump vec4 uSSSParams;
+void main ()
+{
+  mediump vec4 finalResult_1;
+  mediump float GoL_2;
+  mediump vec3 directDiffuse_3;
+  mediump float visibility_4;
+  mediump float distribution_5;
+  mediump vec3 directSpecular_6;
+  highp vec2 envReflUV1_7;
+  highp vec2 envReflUV_8;
+  highp vec2 envDiffUV_9;
+  mediump vec3 indirectLighting_10;
+  mediump vec3 result_11;
+  mediump vec3 viewSpaceNormals_12;
+  mediump float VoH_13;
+  mediump float NoH_14;
+  mediump float dotNL_15;
+  highp vec3 L_16;
+  mediump vec3 sh_Norm_17;
+  mediump vec3 NDDY_18;
+  mediump vec3 NDDX_19;
+  highp mat3 TBN_20;
+  mediump float resultAlpha_21;
+  mediump vec4 pbsParams_22;
+  mediump vec3 emissive_23;
+  highp vec3 tsNormal_24;
+  mediump float rimlightMask_25;
+  mediump vec4 tmpvar_26;
+  tmpvar_26 = texture2D (uBaseTexture, vUV);
+  mediump vec3 tmpvar_27;
+  tmpvar_27 = (tmpvar_26.xyz * mix (uBaseObjectColor2, uBaseObjectColor, tmpvar_26.w));
+  mediump vec4 tmpvar_28;
+  tmpvar_28.w = 0.5;
+  tmpvar_28.xyz = texture2D (uRMAOTexture, vUV).xyz;
+  mediump vec3 tmpvar_29;
+  tmpvar_29 = texture2D (uBumpTexture, vUV).xyz;
+  tsNormal_24 = tmpvar_29;
+  rimlightMask_25 = tsNormal_24.z;
+  highp vec3 normal_30;
+  normal_30.xy = ((tsNormal_24.xy * 2.0) - 1.0);
+  normal_30.z = sqrt(abs((
+    (1.0 - (normal_30.x * normal_30.x))
+   - 
+    (normal_30.y * normal_30.y)
+  )));
+  tsNormal_24.z = normal_30.z;
+  mediump vec4 tmpvar_31;
+  tmpvar_31.xy = tmpvar_28.xy;
+  tmpvar_31.z = (tmpvar_28.z * tmpvar_28.z);
+  tmpvar_31.w = 0.5;
+  pbsParams_22 = ((tmpvar_31 * uRMAOF0Scale) + uRMAOF0Bias);
+  mediump vec4 tmpvar_32;
+  tmpvar_32 = clamp (pbsParams_22, vec4(0.05, 0.0, 0.0, 0.0), vec4(1.0, 1.0, 1.0, 1.0));
+  pbsParams_22 = tmpvar_32;
+  highp float tmpvar_33;
+  tmpvar_33 = vWSNormal.w;
+  resultAlpha_21 = tmpvar_33;
+  tsNormal_24.xy = (normal_30.xy * uNormalStrength);
+  TBN_20[0] = vWSTangent.xyz;
+  TBN_20[1] = (((vWSNormal.yzx * vWSTangent.zxy) - (vWSNormal.zxy * vWSTangent.yzx)) * vWSTangent.w);
+  TBN_20[2] = vWSNormal.xyz;
+  highp vec3 tmpvar_34;
+  tmpvar_34 = normalize((TBN_20 * tsNormal_24));
+  highp vec3 tmpvar_35;
+  tmpvar_35 = normalize((uWorldSpaceEyePosition - vWorldSpacePosition));
+  highp vec3 tmpvar_36;
+  tmpvar_36 = dFdx(tmpvar_34);
+  NDDX_19 = tmpvar_36;
+  highp vec3 tmpvar_37;
+  tmpvar_37 = dFdy(tmpvar_34);
+  NDDY_18 = tmpvar_37;
+  mediump float tmpvar_38;
+  tmpvar_38 = max ((tmpvar_32.x * tmpvar_32.x), sqrt(clamp (
+    max (dot (NDDX_19, NDDX_19), dot (NDDY_18, NDDY_18))
+  , 0.0, 1.0)));
+  mediump vec3 n_39;
+  n_39 = tmpvar_34;
+  mediump vec3 x2_40;
+  mediump vec3 x1_41;
+  mediump vec4 tmpvar_42;
+  tmpvar_42.w = 1.0;
+  tmpvar_42.xyz = -(n_39.xzy);
+  x1_41.x = dot (uSphericalHarmonicCoefficients[0], tmpvar_42);
+  x1_41.y = dot (uSphericalHarmonicCoefficients[1], tmpvar_42);
+  x1_41.z = dot (uSphericalHarmonicCoefficients[2], tmpvar_42);
+  mediump vec4 tmpvar_43;
+  tmpvar_43 = (tmpvar_42.xyzz * tmpvar_42.yzzx);
+  x2_40.x = dot (uSphericalHarmonicCoefficients[3], tmpvar_43);
+  x2_40.y = dot (uSphericalHarmonicCoefficients[4], tmpvar_43);
+  x2_40.z = dot (uSphericalHarmonicCoefficients[5], tmpvar_43);
+  mediump vec3 tmpvar_44;
+  tmpvar_44 = max (((
+    (x1_41 + x2_40)
+   + 
+    (uSphericalHarmonicCoefficients[6].xyz * ((tmpvar_42.x * tmpvar_42.x) - (tmpvar_42.y * tmpvar_42.y)))
+  ) * uSphericalHarmonicCoefficients[6].w), 0.0);
+  highp float tmpvar_45;
+  tmpvar_45 = dot (tmpvar_34, tmpvar_35);
+  highp float tmpvar_46;
+  tmpvar_46 = abs((tmpvar_45 + 1e-5));
+  L_16 = uWorldSpaceToLightVector;
+  highp vec3 L_47;
+  mediump vec3 worldSpacePosition_48;
+  worldSpacePosition_48 = vWorldSpacePosition;
+  mediump vec3 N_49;
+  N_49 = tmpvar_34;
+  mediump vec3 dynamiclight_50;
+  mediump float tmpvar_51;
+  tmpvar_51 = (((0.2126 * tmpvar_44.x) + (0.7152 * tmpvar_44.y)) + (0.0722 * tmpvar_44.z));
+  L_47 = (L_16 * tmpvar_51);
+  mediump vec3 lightVec_52;
+  mediump vec3 tmpvar_53;
+  tmpvar_53 = (uSceneDynamicLightPosition[0].xyz - worldSpacePosition_48);
+  mediump float tmpvar_54;
+  tmpvar_54 = sqrt(dot (tmpvar_53, tmpvar_53));
+  lightVec_52 = (tmpvar_53 / tmpvar_54);
+  mediump float tmpvar_55;
+  mediump float x_56;
+  x_56 = (tmpvar_54 / uSceneDynamicLightPosition[0].w);
+  tmpvar_55 = (x_56 * x_56);
+  mediump float tmpvar_57;
+  tmpvar_57 = clamp ((1.0 - (tmpvar_55 * tmpvar_55)), 0.0, 1.0);
+  mediump vec3 tmpvar_58;
+  tmpvar_58 = ((clamp (
+    dot (lightVec_52, N_49)
+  , 0.0, 1.0) * (
+    (tmpvar_57 * tmpvar_57)
+   / 
+    ((tmpvar_54 * tmpvar_54) + 1.0)
+  )) * uSceneDynamicLightColor[0].xyz);
+  mediump float tmpvar_59;
+  tmpvar_59 = (((0.2126 * tmpvar_58.x) + (0.7152 * tmpvar_58.y)) + (0.0722 * tmpvar_58.z));
+  L_47 = (L_47 + (lightVec_52 * tmpvar_59));
+  mediump vec3 lightVec_60;
+  mediump vec3 tmpvar_61;
+  tmpvar_61 = (uSceneDynamicLightPosition[1].xyz - worldSpacePosition_48);
+  mediump float tmpvar_62;
+  tmpvar_62 = sqrt(dot (tmpvar_61, tmpvar_61));
+  lightVec_60 = (tmpvar_61 / tmpvar_62);
+  mediump float tmpvar_63;
+  mediump float x_64;
+  x_64 = (tmpvar_62 / uSceneDynamicLightPosition[1].w);
+  tmpvar_63 = (x_64 * x_64);
+  mediump float tmpvar_65;
+  tmpvar_65 = clamp ((1.0 - (tmpvar_63 * tmpvar_63)), 0.0, 1.0);
+  mediump vec3 tmpvar_66;
+  tmpvar_66 = ((clamp (
+    dot (lightVec_60, N_49)
+  , 0.0, 1.0) * (
+    (tmpvar_65 * tmpvar_65)
+   / 
+    ((tmpvar_62 * tmpvar_62) + 1.0)
+  )) * uSceneDynamicLightColor[1].xyz);
+  mediump float tmpvar_67;
+  tmpvar_67 = (((0.2126 * tmpvar_66.x) + (0.7152 * tmpvar_66.y)) + (0.0722 * tmpvar_66.z));
+  dynamiclight_50 = (tmpvar_58 + tmpvar_66);
+  L_47 = (L_47 + (lightVec_60 * tmpvar_67));
+  mediump vec3 lightVec_68;
+  mediump vec3 tmpvar_69;
+  tmpvar_69 = (uSceneDynamicLightPosition[2].xyz - worldSpacePosition_48);
+  mediump float tmpvar_70;
+  tmpvar_70 = sqrt(dot (tmpvar_69, tmpvar_69));
+  lightVec_68 = (tmpvar_69 / tmpvar_70);
+  mediump float tmpvar_71;
+  mediump float x_72;
+  x_72 = (tmpvar_70 / uSceneDynamicLightPosition[2].w);
+  tmpvar_71 = (x_72 * x_72);
+  mediump float tmpvar_73;
+  tmpvar_73 = clamp ((1.0 - (tmpvar_71 * tmpvar_71)), 0.0, 1.0);
+  mediump vec3 tmpvar_74;
+  tmpvar_74 = ((clamp (
+    dot (lightVec_68, N_49)
+  , 0.0, 1.0) * (
+    (tmpvar_73 * tmpvar_73)
+   / 
+    ((tmpvar_70 * tmpvar_70) + 1.0)
+  )) * uSceneDynamicLightColor[2].xyz);
+  mediump float tmpvar_75;
+  tmpvar_75 = (((0.2126 * tmpvar_74.x) + (0.7152 * tmpvar_74.y)) + (0.0722 * tmpvar_74.z));
+  dynamiclight_50 = (dynamiclight_50 + tmpvar_74);
+  L_47 = (L_47 + (lightVec_68 * tmpvar_75));
+  mediump vec3 lightVec_76;
+  mediump vec3 tmpvar_77;
+  tmpvar_77 = (uSceneDynamicLightPosition[3].xyz - worldSpacePosition_48);
+  mediump float tmpvar_78;
+  tmpvar_78 = sqrt(dot (tmpvar_77, tmpvar_77));
+  lightVec_76 = (tmpvar_77 / tmpvar_78);
+  mediump float tmpvar_79;
+  mediump float x_80;
+  x_80 = (tmpvar_78 / uSceneDynamicLightPosition[3].w);
+  tmpvar_79 = (x_80 * x_80);
+  mediump float tmpvar_81;
+  tmpvar_81 = clamp ((1.0 - (tmpvar_79 * tmpvar_79)), 0.0, 1.0);
+  mediump vec3 tmpvar_82;
+  tmpvar_82 = ((clamp (
+    dot (lightVec_76, N_49)
+  , 0.0, 1.0) * (
+    (tmpvar_81 * tmpvar_81)
+   / 
+    ((tmpvar_78 * tmpvar_78) + 1.0)
+  )) * uSceneDynamicLightColor[3].xyz);
+  mediump float tmpvar_83;
+  tmpvar_83 = (((0.2126 * tmpvar_82.x) + (0.7152 * tmpvar_82.y)) + (0.0722 * tmpvar_82.z));
+  dynamiclight_50 = (dynamiclight_50 + tmpvar_82);
+  L_47 = (L_47 + (lightVec_76 * tmpvar_83));
+  mediump vec3 lightVec_84;
+  mediump vec3 tmpvar_85;
+  tmpvar_85 = (uSceneDynamicLightPosition[4].xyz - worldSpacePosition_48);
+  mediump float tmpvar_86;
+  tmpvar_86 = sqrt(dot (tmpvar_85, tmpvar_85));
+  lightVec_84 = (tmpvar_85 / tmpvar_86);
+  mediump float tmpvar_87;
+  mediump float x_88;
+  x_88 = (tmpvar_86 / uSceneDynamicLightPosition[4].w);
+  tmpvar_87 = (x_88 * x_88);
+  mediump float tmpvar_89;
+  tmpvar_89 = clamp ((1.0 - (tmpvar_87 * tmpvar_87)), 0.0, 1.0);
+  mediump vec3 tmpvar_90;
+  tmpvar_90 = ((clamp (
+    dot (lightVec_84, N_49)
+  , 0.0, 1.0) * (
+    (tmpvar_89 * tmpvar_89)
+   / 
+    ((tmpvar_86 * tmpvar_86) + 1.0)
+  )) * uSceneDynamicLightColor[4].xyz);
+  mediump float tmpvar_91;
+  tmpvar_91 = (((0.2126 * tmpvar_90.x) + (0.7152 * tmpvar_90.y)) + (0.0722 * tmpvar_90.z));
+  dynamiclight_50 = (dynamiclight_50 + tmpvar_90);
+  L_47 = (L_47 + (lightVec_84 * tmpvar_91));
+  L_47.z = (L_47.z + 1e-5);
+  highp vec3 tmpvar_92;
+  tmpvar_92 = normalize(L_47);
+  L_47 = tmpvar_92;
+  L_16 = tmpvar_92;
+  sh_Norm_17 = (tmpvar_44 + dynamiclight_50);
+  highp float tmpvar_93;
+  tmpvar_93 = dot (tmpvar_34, tmpvar_92);
+  dotNL_15 = tmpvar_93;
+  mediump float tmpvar_94;
+  tmpvar_94 = max (dotNL_15, 0.0);
+  highp vec3 tmpvar_95;
+  tmpvar_95 = normalize((tmpvar_35 + tmpvar_92));
+  highp float tmpvar_96;
+  tmpvar_96 = max (dot (tmpvar_34, tmpvar_95), 0.0);
+  NoH_14 = tmpvar_96;
+  highp float tmpvar_97;
+  tmpvar_97 = max (dot (tmpvar_35, tmpvar_95), 0.0);
+  VoH_13 = tmpvar_97;
+  highp vec4 tmpvar_98;
+  tmpvar_98.w = 0.0;
+  tmpvar_98.xyz = tmpvar_34;
+  highp vec3 tmpvar_99;
+  tmpvar_99 = normalize((uViewMatrix * tmpvar_98)).xyz;
+  viewSpaceNormals_12 = tmpvar_99;
+  mediump vec3 tmpvar_100;
+  tmpvar_100 = normalize(vViewSpacePosition);
+  mediump vec3 tmpvar_101;
+  tmpvar_101 = ((tmpvar_100.yzx * viewSpaceNormals_12.zxy) - (tmpvar_100.zxy * viewSpaceNormals_12.yzx));
+  mediump vec3 tmpvar_102;
+  tmpvar_102.x = -(tmpvar_101.z);
+  tmpvar_102.y = -(tmpvar_101.x);
+  tmpvar_102.z = tmpvar_101.y;
+  viewSpaceNormals_12 = tmpvar_102;
+  emissive_23 = (((texture2D (uRimlightTexture, 
+    ((tmpvar_102.xy * 0.5) + 0.5)
+  ).xyz * uRimlightColor) * sh_Norm_17) * (tmpvar_32.z * rimlightMask_25));
+  mediump vec3 tmpvar_103;
+  tmpvar_103 = (tmpvar_27 - (tmpvar_27 * tmpvar_32.y));
+  mediump float tmpvar_104;
+  tmpvar_104 = (0.08 * tmpvar_32.w);
+  mediump vec3 tmpvar_105;
+  tmpvar_105 = ((tmpvar_104 - (tmpvar_104 * tmpvar_32.y)) + (tmpvar_27 * tmpvar_32.y));
+  mediump float tmpvar_106;
+  tmpvar_106 = min ((tmpvar_32.x * 1.2), 1.0);
+  mediump float NoV_107;
+  NoV_107 = tmpvar_46;
+  mediump vec2 AB_108;
+  mediump vec4 tmpvar_109;
+  tmpvar_109 = ((tmpvar_32.x * vec4(-1.0, 0.0275, -0.572, 0.022)) + vec4(1.0, 0.0425, 1.04, -0.04));
+  mediump vec2 tmpvar_110;
+  tmpvar_110 = ((vec2(-1.04, 1.04) * (
+    (min ((tmpvar_109.x * tmpvar_109.x), exp2((-9.28 * NoV_107))) * tmpvar_109.x)
+   + tmpvar_109.y)) + tmpvar_109.zw);
+  AB_108.x = tmpvar_110.x;
+  AB_108.y = (tmpvar_110.y * clamp ((50.0 * tmpvar_105.y), 0.0, 1.0));
+  mediump vec2 tmpvar_111;
+  tmpvar_111 = (vec2(0.7, 0.1) * uSSSParams.x);
+  mediump float x_112;
+  x_112 = ((tmpvar_34.z * 0.5) + 0.5);
+  sh_Norm_17 = (sh_Norm_17 + mix (uAmbientLightGround, uAmbientLightSky, clamp (x_112, 0.0, 1.0)));
+  highp vec3 tmpvar_113;
+  tmpvar_113.x = tmpvar_34.x;
+  tmpvar_113.y = tmpvar_34.z;
+  tmpvar_113.z = -(tmpvar_34.y);
+  highp vec2 pos_114;
+  highp vec2 tmpvar_115;
+  tmpvar_115.x = (tmpvar_34.x / sqrt(dot (tmpvar_113.xz, tmpvar_113.xz)));
+  tmpvar_115.y = tmpvar_113.y;
+  highp vec2 tmpvar_116;
+  tmpvar_116 = (1.570796 - (sign(tmpvar_115) * (1.570796 - 
+    (sqrt((1.0 - abs(tmpvar_115))) * (1.570796 + (abs(tmpvar_115) * (-0.2146018 + 
+      (abs(tmpvar_115) * (0.08656672 + (abs(tmpvar_115) * -0.03102955)))
+    ))))
+  )));
+  mediump vec2 x_117;
+  x_117 = (tmpvar_116 * 0.3183099);
+  mediump vec2 tmpvar_118;
+  tmpvar_118 = clamp (x_117, 0.0, 1.0);
+  pos_114 = tmpvar_118;
+  pos_114.x = (pos_114.x * 0.5);
+  pos_114.x = mix (pos_114.x, (1.0 - pos_114.x), float((0.0 >= tmpvar_113.z)));
+  pos_114.x = (pos_114.x - uAmbientEnvironmentRotation);
+  pos_114.x = fract((1.0 - pos_114.x));
+  envDiffUV_9.y = pos_114.y;
+  envDiffUV_9.x = ((pos_114.x * 0.04545455) + 0.9545454);
+  mediump vec4 tmpvar_119;
+  tmpvar_119 = texture2D (uAmbientEnvironmentTexture, envDiffUV_9);
+  mediump vec3 tmpvar_120;
+  tmpvar_120 = ((32.0 * tmpvar_119.w) * tmpvar_119.xyz);
+  mediump vec3 tmpvar_121;
+  tmpvar_121 = (tmpvar_120 * tmpvar_120);
+  indirectLighting_10 = ((mix (tmpvar_121, vec3(
+    (((0.2126 * tmpvar_121.x) + (0.7152 * tmpvar_121.y)) + (0.0722 * tmpvar_121.z))
+  ), tmpvar_106) * tmpvar_103) * 0.3183099);
+  highp vec3 tmpvar_122;
+  tmpvar_122 = clamp (((
+    (2.0 * tmpvar_45)
+   * tmpvar_34) - tmpvar_35), -1.0, 1.0);
+  highp vec3 tmpvar_123;
+  tmpvar_123.x = tmpvar_122.x;
+  tmpvar_123.y = tmpvar_122.z;
+  tmpvar_123.z = -(tmpvar_122.y);
+  highp vec3 tmpvar_124;
+  tmpvar_124 = clamp (tmpvar_123, -1.0, 1.0);
+  highp vec2 pos_125;
+  highp vec2 tmpvar_126;
+  tmpvar_126.x = (tmpvar_124.x / sqrt(dot (tmpvar_124.xz, tmpvar_124.xz)));
+  tmpvar_126.y = tmpvar_124.y;
+  highp vec2 tmpvar_127;
+  tmpvar_127 = (1.570796 - (sign(tmpvar_126) * (1.570796 - 
+    (sqrt((1.0 - abs(tmpvar_126))) * (1.570796 + (abs(tmpvar_126) * (-0.2146018 + 
+      (abs(tmpvar_126) * (0.08656672 + (abs(tmpvar_126) * -0.03102955)))
+    ))))
+  )));
+  mediump vec2 x_128;
+  x_128 = (tmpvar_127 * 0.3183099);
+  mediump vec2 tmpvar_129;
+  tmpvar_129 = clamp (x_128, 0.0, 1.0);
+  pos_125 = tmpvar_129;
+  pos_125.x = (pos_125.x * 0.5);
+  pos_125.x = mix (pos_125.x, (1.0 - pos_125.x), float((0.0 >= tmpvar_124.z)));
+  pos_125.x = (pos_125.x - uAmbientEnvironmentRotation);
+  pos_125.x = fract((1.0 - pos_125.x));
+  envReflUV_8.y = pos_125.y;
+  envReflUV_8.x = (pos_125.x * 0.04545455);
+  envReflUV1_7.y = envReflUV_8.y;
+  mediump float tmpvar_130;
+  tmpvar_130 = floor((tmpvar_32.x * 21.0));
+  envReflUV1_7.x = (envReflUV_8.x + (tmpvar_130 * 0.04545455));
+  envReflUV1_7.x = (envReflUV1_7.x - 0.04545455);
+  mediump vec4 tmpvar_131;
+  tmpvar_131 = texture2D (uAmbientEnvironmentTexture, envReflUV1_7);
+  mediump vec3 tmpvar_132;
+  tmpvar_132 = ((32.0 * tmpvar_131.w) * tmpvar_131.xyz);
+  mediump vec3 tmpvar_133;
+  tmpvar_133 = (tmpvar_132 * tmpvar_132);
+  indirectLighting_10 = (indirectLighting_10 + (mix (tmpvar_133, vec3(
+    (((0.2126 * tmpvar_133.x) + (0.7152 * tmpvar_133.y)) + (0.0722 * tmpvar_133.z))
+  ), tmpvar_38) * (
+    (tmpvar_105 * tmpvar_110.x)
+   + AB_108.y)));
+  indirectLighting_10 = (indirectLighting_10 * uIndirectLightingScale);
+  highp float tmpvar_134;
+  highp float roughness_135;
+  roughness_135 = tmpvar_38;
+  highp float NoH_136;
+  NoH_136 = NoH_14;
+  highp float tmpvar_137;
+  tmpvar_137 = (roughness_135 * roughness_135);
+  highp float tmpvar_138;
+  tmpvar_138 = (((
+    (NoH_136 * tmpvar_137)
+   - NoH_136) * NoH_136) + 1.0);
+  tmpvar_134 = (tmpvar_137 / ((3.141593 * tmpvar_138) * tmpvar_138));
+  distribution_5 = tmpvar_134;
+  highp float tmpvar_139;
+  mediump float NoV_140;
+  NoV_140 = tmpvar_46;
+  highp float a_141;
+  a_141 = tmpvar_38;
+  highp float tmpvar_142;
+  tmpvar_142 = (1.0 - a_141);
+  tmpvar_139 = (0.5 / ((tmpvar_94 * 
+    ((NoV_140 * tmpvar_142) + a_141)
+  ) + (NoV_140 * 
+    ((tmpvar_94 * tmpvar_142) + a_141)
+  )));
+  visibility_4 = tmpvar_139;
+  mediump float Fc_143;
+  mediump float tmpvar_144;
+  tmpvar_144 = (1.0 - VoH_13);
+  mediump float tmpvar_145;
+  tmpvar_145 = (tmpvar_144 * tmpvar_144);
+  Fc_143 = ((tmpvar_145 * tmpvar_145) * tmpvar_144);
+  directSpecular_6 = (((tmpvar_94 * distribution_5) * visibility_4) * ((
+    clamp ((50.0 * tmpvar_105.y), 0.0, 1.0)
+   * Fc_143) + (
+    (1.0 - Fc_143)
+   * tmpvar_105)));
+  directSpecular_6 = (directSpecular_6 * (uLightColor + dynamiclight_50));
+  directDiffuse_3 = (sh_Norm_17 * tmpvar_103);
+  result_11 = (indirectLighting_10 * mix (vec3((
+    ((0.2126 * sh_Norm_17.x) + (0.7152 * sh_Norm_17.y))
+   + 
+    (0.0722 * sh_Norm_17.z)
+  )), sh_Norm_17, tmpvar_106));
+  highp float tmpvar_146;
+  tmpvar_146 = dot (vWSNormal.xyz, tmpvar_92);
+  GoL_2 = tmpvar_146;
+  mediump float tmpvar_147;
+  tmpvar_147 = clamp (((GoL_2 * 
+    (1.0 - uSSSParams.z)
+  ) + uSSSParams.z), 0.0, 1.0);
+  mediump float tmpvar_148;
+  tmpvar_148 = clamp (((dotNL_15 * 
+    (1.0 - uSSSParams.w)
+  ) + uSSSParams.w), 0.0, 1.0);
+  mediump vec3 blendedDiff_149;
+  mediump float tmpvar_150;
+  tmpvar_150 = mix (tmpvar_148, tmpvar_147, tmpvar_111.x);
+  mediump vec3 tmpvar_151;
+  tmpvar_151.x = tmpvar_150;
+  tmpvar_151.yz = vec2(mix (tmpvar_148, tmpvar_147, tmpvar_111.y));
+  blendedDiff_149.x = tmpvar_151.x;
+  blendedDiff_149.yz = min ((vec2(tmpvar_150) + (1.0 - uSSSParams.y)), tmpvar_151.yz);
+  directDiffuse_3 = (directDiffuse_3 * blendedDiff_149);
+  result_11 = (result_11 + ((directSpecular_6 + directDiffuse_3) * uDirectLightingScale));
+  result_11 = ((result_11 * tmpvar_32.z) + emissive_23);
+  mediump vec3 directionalInscattering_152;
+  highp vec3 directionalLightInscattering_153;
+  highp vec3 tmpvar_154;
+  tmpvar_154 = (vWorldSpacePosition - uWorldSpaceEyePosition);
+  highp float tmpvar_155;
+  tmpvar_155 = sqrt(dot (tmpvar_154, tmpvar_154));
+  highp vec3 tmpvar_156;
+  tmpvar_156 = (tmpvar_154 / tmpvar_155);
+  highp float tmpvar_157;
+  tmpvar_157 = abs(tmpvar_154.z);
+  highp float tmpvar_158;
+  if ((tmpvar_157 > 0.0001)) {
+    tmpvar_158 = tmpvar_154.z;
+  } else {
+    tmpvar_158 = 0.0001;
+  };
+  highp float tmpvar_159;
+  tmpvar_159 = max (-127.0, (uExponentialFogParams.y * tmpvar_158));
+  highp float tmpvar_160;
+  tmpvar_160 = ((uExponentialFogParams.x * (1.0 - 
+    exp2(-(tmpvar_159))
+  )) / tmpvar_159);
+  highp float tmpvar_161;
+  tmpvar_161 = exp2(-((
+    (tmpvar_160 * max ((tmpvar_155 - uExponentialFogParams.z), 0.0))
+   * uDirectionalInscatteringStartFalloffAndInscatterFalloff.z)));
+  mediump float x_162;
+  x_162 = tmpvar_161;
+  mediump float tmpvar_163;
+  tmpvar_163 = (1.0 - max (clamp (x_162, 0.0, 1.0), uExponentialFogColorOpacity.w));
+  highp float tmpvar_164;
+  tmpvar_164 = dot (tmpvar_156, uFogOmniDirAtten.xyz);
+  mediump float x_165;
+  x_165 = tmpvar_164;
+  mediump vec3 tmpvar_166;
+  tmpvar_166 = (uDirectionalInscatteringColorRadius.xyz * pow (clamp (x_165, 0.0, 1.0), uDirectionalInscatteringColorRadius.w));
+  directionalLightInscattering_153 = tmpvar_166;
+  highp float tmpvar_167;
+  tmpvar_167 = exp2(-((
+    (tmpvar_160 * max ((tmpvar_155 - uDirectionalInscatteringStartFalloffAndInscatterFalloff.x), 0.0))
+   * uDirectionalInscatteringStartFalloffAndInscatterFalloff.y)));
+  mediump float x_168;
+  x_168 = tmpvar_167;
+  mediump float tmpvar_169;
+  tmpvar_169 = clamp (x_168, 0.0, 1.0);
+  highp vec3 tmpvar_170;
+  tmpvar_170 = (directionalLightInscattering_153 * (1.0 - tmpvar_169));
+  directionalInscattering_152 = tmpvar_170;
+  mediump vec4 tmpvar_171;
+  tmpvar_171.xyz = ((uExponentialFogColorOpacity.xyz * tmpvar_163) + directionalInscattering_152);
+  tmpvar_171.w = tmpvar_163;
+  mediump vec3 tmpvar_172;
+  tmpvar_172 = mix (result_11, tmpvar_171.xyz, tmpvar_163);
+  result_11 = tmpvar_172;
+  mediump vec4 tmpvar_173;
+  tmpvar_173.xyz = tmpvar_172;
+  tmpvar_173.w = resultAlpha_21;
+  finalResult_1.w = tmpvar_173.w;
+  finalResult_1.xyz = min (max (tmpvar_172, 0.0), 65000.0);
+  gl_FragColor = finalResult_1;
+}
+

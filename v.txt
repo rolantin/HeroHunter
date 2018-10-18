@@ -1,0 +1,67 @@
+#version 100
+#extension GL_OES_standard_derivatives : enable
+attribute highp vec3 aPosition;
+attribute mediump vec3 aNormal;
+attribute mediump vec4 aTangent;
+attribute mediump vec2 aUV;
+attribute highp vec4 aBoneIndex;
+attribute highp vec4 aBoneWeight;
+uniform highp mat4 uModelMatrix;
+uniform highp mat4 uModelViewMatrix;
+uniform highp mat4 uModelViewProjectionMatrix;
+uniform highp mat3 uSkinningPaletteM[40];
+uniform highp vec3 uSkinningPaletteT[40];
+varying highp vec3 vWorldSpacePosition;
+varying highp vec4 vWSNormal;
+varying highp vec4 vWSTangent;
+varying mediump vec2 vUV;
+varying mediump vec3 vViewSpacePosition;
+uniform mediump vec2 uUVShift;
+void main ()
+{
+  mediump vec4 vsPosition_1;
+  mediump mat3 modelMatrix_2;
+  highp vec4 osTangent_3;
+  highp vec3 p_out_4;
+  highp vec3 n_in_5;
+  n_in_5 = aNormal;
+  highp vec3 t_in_6;
+  t_in_6 = aTangent.xyz;
+  highp ivec4 tmpvar_7;
+  tmpvar_7 = ivec4(aBoneIndex);
+  highp mat3 tmpvar_8;
+  tmpvar_8 = (((uSkinningPaletteM[tmpvar_7.x] * aBoneWeight.x) + (uSkinningPaletteM[tmpvar_7.y] * aBoneWeight.y)) + (uSkinningPaletteM[tmpvar_7.z] * aBoneWeight.z));
+  p_out_4 = ((tmpvar_8 * aPosition) + ((
+    (uSkinningPaletteT[tmpvar_7.x] * aBoneWeight.x)
+   + 
+    (uSkinningPaletteT[tmpvar_7.y] * aBoneWeight.y)
+  ) + (uSkinningPaletteT[tmpvar_7.z] * aBoneWeight.z)));
+  osTangent_3.xyz = (tmpvar_8 * t_in_6);
+  osTangent_3.w = aTangent.w;
+  highp vec4 tmpvar_9;
+  tmpvar_9.w = 1.0;
+  tmpvar_9.xyz = p_out_4;
+  gl_Position = (uModelViewProjectionMatrix * tmpvar_9);
+  modelMatrix_2[0] = uModelMatrix[0].xyz;
+  modelMatrix_2[1] = uModelMatrix[1].xyz;
+  modelMatrix_2[2] = uModelMatrix[2].xyz;
+  vWSNormal.xyz = (modelMatrix_2 * (tmpvar_8 * n_in_5));
+  vWSTangent.w = osTangent_3.w;
+  vWSTangent.xyz = (modelMatrix_2 * osTangent_3.xyz);
+  highp vec4 tmpvar_10;
+  tmpvar_10.w = 1.0;
+  tmpvar_10.xyz = p_out_4;
+  highp vec4 tmpvar_11;
+  tmpvar_11 = (uModelViewMatrix * tmpvar_10);
+  vsPosition_1 = tmpvar_11;
+  mediump float tmpvar_12;
+  tmpvar_12 = min (vsPosition_1.y, 60000.0);
+  vWSNormal.w = tmpvar_12;
+  highp vec4 tmpvar_13;
+  tmpvar_13.w = 1.0;
+  tmpvar_13.xyz = p_out_4;
+  vWorldSpacePosition = (uModelMatrix * tmpvar_13).xyz;
+  vUV = (aUV + uUVShift);
+  vViewSpacePosition = vsPosition_1.xyz;
+}
+
